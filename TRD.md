@@ -13,6 +13,7 @@ app/page.tsx --POST /api/chat--> app/api/chat/route.ts
                                       |
                                       +- validate transcript
                                       +- fetchMondaySnapshot(MONDAY_TOKEN)
+                                      +- buildAnalyticsSummary(snapshot)
                                       +- Gemini API response
                                       |
                                       +- text deltas --> ReadableStream --> browser
@@ -29,7 +30,7 @@ The route reads two monday.com boards by numeric ID:
 | Deal funnel Data.xlsx - Deal tracker | `5030221367` |
 | Work_Order_Tracker Data.xlsx - work order tracker | `5030220660` |
 
-`lib/monday.ts` queries board metadata and up to 500 items per board, maps column IDs to human-readable column titles, drops empty column values from each row, and sends a compact JSON snapshot to Gemini.
+`lib/monday.ts` queries board metadata and up to 500 items per board, maps column IDs to human-readable column titles, and drops empty column values from each row. `lib/analytics.ts` converts that live snapshot into deterministic pipeline, billing-risk, and cross-board-gap metrics. Gemini receives that deterministic summary, not the raw board rows.
 
 ## Data Model
 
@@ -40,9 +41,20 @@ The route reads two monday.com boards by numeric ID:
 
 **Join key:** `Deal Name` on board 1 and `Deal name masked` on board 2, matched as exact masked strings.
 
+## Deterministic Analytics
+
+`buildAnalyticsSummary` computes the assignment-critical facts before the LLM writes:
+
+| Area | Deterministic output |
+|---|---|
+| Pipeline health | Open-deal count, masked value coverage, sector/stage concentration, top open deals, exclusions |
+| Billing risk | Normalized billing statuses, receivable exposure, unbilled exposure, top masked accounts |
+| Cross-board gaps | Exact masked-name join, active-work-order coverage, sectors with open deals but no active work order |
+| Caveats | Missing values, inactive/missing execution statuses, duplicate masked names |
+
 ## Data-Quality Handling
 
-Enforced through `SYSTEM_PROMPT`:
+Handled deterministically where possible, then enforced in `SYSTEM_PROMPT` for wording:
 
 | Issue | Rule |
 |---|---|
@@ -61,7 +73,7 @@ Direct monday GraphQL is the demo-critical path because it has predictable board
 ## Known Limitations
 
 - `items_page(limit: 500)` is enough for the current boards but should be paginated before production scale.
-- Data cleaning is prompt-enforced after snapshot shaping, not a deterministic pipeline.
+- Core assignment metrics are deterministic; free-form follow-up questions are limited to the summary sent to Gemini.
 - No caching; every request re-reads monday.
 - No long-session conversation compaction.
 - One shared monday token and Gemini key.

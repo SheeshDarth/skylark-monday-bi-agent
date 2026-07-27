@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "audit": "node --env-file=.env.local scripts/audit-assignment.mjs",
     "start": "next start",
     "smoke": "node --env-file=.env.local scripts/smoke-test.mjs"
   },

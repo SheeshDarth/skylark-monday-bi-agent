@@ -90,7 +90,6 @@ async function fetchSnapshot() {
 
 const snapshot = await fetchSnapshot();
 const analytics = buildAnalyticsSummary(snapshot);
-const snapshotJson = JSON.stringify(snapshot);
 const analyticsJson = JSON.stringify(analytics);
 
 async function ask(question) {
@@ -111,7 +110,7 @@ async function ask(question) {
               {
                 text:
                   `DETERMINISTIC ANALYTICS SUMMARY JSON:\n${analyticsJson}\n\n` +
-                  `LIVE MONDAY SNAPSHOT JSON:\n${snapshotJson}\n\nUSER: ${question}`,
+                  `USER: ${question}`,
               },
             ],
           },
