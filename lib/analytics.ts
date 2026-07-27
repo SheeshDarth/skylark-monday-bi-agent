@@ -307,3 +307,5 @@ export function buildAnalyticsSummary(snapshot: MondaySnapshot) {
     },
   };
 }
+
+export type AnalyticsSummary = ReturnType<typeof buildAnalyticsSummary>;
