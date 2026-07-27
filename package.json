@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "audit": "node --env-file=.env.local scripts/audit-assignment.mjs",
+    "verify:founder": "node scripts/verify-founder-route.mjs",
     "start": "next start",
     "smoke": "node --env-file=.env.local scripts/smoke-test.mjs"
   },
