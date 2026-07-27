@@ -31,8 +31,12 @@ Get an API key from the Anthropic Console.
 pip install -r requirements.txt
 cp .env.example .env   # fill in ANTHROPIC_API_KEY and MONDAY_TOKEN
 export $(cat .env | xargs)   # or use your shell's preferred env-loading method
+
+python smoke_test.py   # verify monday.com is reachable BEFORE anything else
 streamlit run app.py
 ```
+
+`smoke_test.py` confirms the MCP connection works and both boards are readable. MCP auth failures only surface when a tool call actually runs, so a bad token otherwise looks fine until mid-demo. Run `python smoke_test.py --all` for the full 5-question suite.
 
 ### 4. Deploy (Streamlit Community Cloud)
 
@@ -50,6 +54,8 @@ streamlit run app.py
 | File | Purpose |
 |---|---|
 | `app.py` | The agent — Streamlit chat UI + Claude MCP connector call |
+| `config.py` | Model ID, MCP URL, and system prompt (shared by the app and the smoke test) |
+| `smoke_test.py` | Pre-deploy connection check + the 5 manual test questions |
 | `requirements.txt` | Python dependencies |
 | `PRD.md` | Product requirements — problem, users, user stories, success criteria |
 | `TRD.md` | Technical design — architecture, data-cleaning rules, MCP integration, limitations |
