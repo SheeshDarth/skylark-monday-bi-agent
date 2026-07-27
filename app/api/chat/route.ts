@@ -1,5 +1,6 @@
 import { SYSTEM_PROMPT } from "@/lib/config";
 import { buildAnalyticsSummary } from "@/lib/analytics";
+import { deterministicFounderResponse } from "@/lib/founderResponses";
 import { generateGeminiAnswer } from "@/lib/gemini";
 import { fetchMondaySnapshot } from "@/lib/monday";
 
@@ -44,9 +45,9 @@ export async function POST(req: Request) {
   const mondayToken = process.env.MONDAY_TOKEN;
   const geminiKey = process.env.GEMINI_API_KEY;
 
-  if (!geminiKey || !mondayToken) {
+  if (!mondayToken) {
     return Response.json(
-      { error: "Server is missing GEMINI_API_KEY or MONDAY_TOKEN." },
+      { error: "Server is missing MONDAY_TOKEN." },
       { status: 500 },
     );
   }
@@ -62,6 +63,24 @@ export async function POST(req: Request) {
       try {
         const snapshot = await fetchMondaySnapshot(mondayToken);
         const analytics = buildAnalyticsSummary(snapshot);
+        const latestQuestion = messages[messages.length - 1]?.content || "";
+        const deterministic = deterministicFounderResponse(latestQuestion, analytics);
+        if (deterministic) {
+          controller.enqueue(encoder.encode(deterministic));
+          controller.close();
+          return;
+        }
+
+        if (!geminiKey) {
+          controller.enqueue(
+            encoder.encode(
+              "**Request failed:** This question needs Gemini, but the server is missing GEMINI_API_KEY.",
+            ),
+          );
+          controller.close();
+          return;
+        }
+
         const text = await generateGeminiAnswer(
           geminiKey,
           SYSTEM_PROMPT,
