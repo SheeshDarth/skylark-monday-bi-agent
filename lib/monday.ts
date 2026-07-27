@@ -84,31 +84,46 @@ function tokenHeaders(token: string) {
   };
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function mondayGraphql<T>(token: string, query: string, variables: Record<string, unknown>): Promise<T> {
-  const res = await fetch(MONDAY_API_URL, {
-    method: "POST",
-    headers: tokenHeaders(token),
-    body: JSON.stringify({ query, variables }),
-    cache: "no-store",
-  });
+  let lastError: unknown;
 
-  const json = (await res.json().catch(() => null)) as
-    | { data?: T; errors?: Array<{ message?: string }> }
-    | null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const res = await fetch(MONDAY_API_URL, {
+        method: "POST",
+        headers: tokenHeaders(token),
+        body: JSON.stringify({ query, variables }),
+        cache: "no-store",
+      });
 
-  if (!res.ok || !json) {
-    throw new Error(`monday.com API request failed with status ${res.status}.`);
+      const json = (await res.json().catch(() => null)) as
+        | { data?: T; errors?: Array<{ message?: string }> }
+        | null;
+
+      if (!res.ok || !json) {
+        throw new Error(`monday.com API request failed with status ${res.status}.`);
+      }
+
+      if (json.errors?.length) {
+        throw new Error(json.errors.map((error) => error.message || "Unknown monday.com error").join("; "));
+      }
+
+      if (!json.data) {
+        throw new Error("monday.com API returned no data.");
+      }
+
+      return json.data;
+    } catch (err) {
+      lastError = err;
+      if (attempt < 3) await wait(attempt * 400);
+    }
   }
 
-  if (json.errors?.length) {
-    throw new Error(json.errors.map((error) => error.message || "Unknown monday.com error").join("; "));
-  }
-
-  if (!json.data) {
-    throw new Error("monday.com API returned no data.");
-  }
-
-  return json.data;
+  throw lastError instanceof Error ? lastError : new Error("monday.com API request failed.");
 }
 
 function normalizeBoard(board: MondayBoardResponse, expectedName: string): BoardSnapshot {
