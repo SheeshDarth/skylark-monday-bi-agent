@@ -2,28 +2,28 @@
 
 ## Problem
 
-Founders and executives need quick, accurate answers to business questions spanning multiple monday.com boards (work orders, deals). Today this means manually pulling data, cleaning inconsistent formats, and building ad-hoc analysis per query — slow, and error-prone on messy real-world data.
+Founders and executives need quick, accurate answers to business questions spanning multiple monday.com boards. Today that means manually pulling data, reconciling inconsistent formats, and building ad-hoc analysis per question — slow, and easy to get wrong on messy operational data.
 
-## Target users
+## Target user
 
-Skylark founders/executives asking natural-language business questions — not analysts, not engineers. They want an answer and the "so what," not a spreadsheet.
+A Skylark founder or executive. Not an analyst, not an engineer. They want the answer and its implication, not a spreadsheet — and they need to trust the number, which means knowing what was excluded from it.
 
-## Core user stories
+## User stories
 
-1. As a founder, I can ask "How's our pipeline looking for the energy sector this quarter?" and get a direct answer with context (not just a number).
-2. As an executive, I can ask about work order billing/collection status by sector and get flagged risks (e.g. unbilled amounts, stalled collections).
-3. As a founder, I can ask a question that requires joining both boards (e.g. "which sectors have deals but no active work orders?") and get a correct cross-board answer.
-4. As a founder, I can ask the agent to prepare a leadership-update-ready summary of a topic, and get a short, pasteable markdown block.
-5. As any user, when data is missing or ambiguous, I'm told so explicitly rather than getting a silently wrong number.
+1. **Pipeline health** — "How's our pipeline looking by sector?" -> an answer that leads with the finding (concentration, stalled deals) before the breakdown.
+2. **Billing risk** — "What's at risk in billing and collections?" -> unbilled/uncollected amounts with the specific accounts flagged.
+3. **Cross-board** — "Which sectors have deals but no active work orders?" -> correctly joins `Deal Name` to `Deal name masked` and reports deals present on only one board rather than dropping them.
+4. **Leadership update** — "Prepare a leadership update on pipeline health." -> a pasteable markdown block: one headline stat, 2-3 bullets, one flagged risk.
+5. **Honest gaps** — any aggregate states how many records it covers and how many were excluded, so a blank field is never silently counted as zero.
 
 ## Out of scope
 
-- Write access to monday.com (the integration is read-only by requirement).
-- User authentication / multi-tenant support (single shared token for this exercise).
-- Historical trend charts or a dashboard UI — this is a chat interface only.
+- Writing to monday.com. The brief specifies read-only, and the token should be read-scoped.
+- Authentication / multi-tenancy. One shared credential, appropriate for an evaluation prototype only.
+- Dashboards or charts. Chat is the whole interface.
 
 ## Success criteria
 
-- Correctly answers all 5 user stories above against the live boards.
-- Never reports an aggregate number without disclosing exclusions/missing data behind it.
-- Hosted, reachable, and testable with zero local setup.
+- All five stories answered correctly against the live boards.
+- No aggregate reported without its exclusion count.
+- Deployed and usable from a URL with zero local setup.

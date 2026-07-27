@@ -1,62 +1,77 @@
 # TRD — Skylark Business Intelligence Agent
 
-## Architecture
+## Stack
+
+Next.js 15 (App Router) on Vercel · TypeScript · Anthropic SDK · `claude-opus-5`
+
+No database, no ORM, no state store. The boards are the source of truth and are read live on every turn.
+
+## Request path
 
 ```
-Streamlit chat UI (app.py)
-    -> client.beta.messages.create(
-           model="claude-opus-5",
-           mcp_servers=[{type: "url", url: "https://mcp.monday.com/mcp",
-                          name: "monday", authorization_token: MONDAY_TOKEN}],
-           tools=[{type: "mcp_toolset", mcp_server_name: "monday"}],
-           betas=["mcp-client-2025-11-20"],
-       )
+app/page.tsx  --POST /api/chat-->  app/api/chat/route.ts
+                                        |
+                                        +- validates the transcript (trust boundary)
+                                        +- client.beta.messages.stream({
+                                             betas: ["mcp-client-2025-11-20"],
+                                             mcp_servers: [{ type:"url",
+                                                             url:"https://mcp.monday.com/mcp",
+                                                             authorization_token: MONDAY_TOKEN }],
+                                             tools: [{ type:"mcp_toolset", mcp_server_name:"monday" }],
+                                           })
+                                        |
+                                        +- text deltas --> ReadableStream --> browser
 ```
 
-One Anthropic API call per chat turn. Claude's MCP connector calls monday.com's hosted MCP server server-side — the model decides which board(s) and which tool calls are needed, executes them, and returns a final text answer in the same call. No local fetch/clean/aggregate pipeline exists; all data handling happens inside the model's reasoning, guided by the system prompt.
+The MCP connector runs the tool loop **server-side inside Anthropic's infrastructure**. Claude picks the boards, issues the queries, and reasons over the results without a round trip back to our function per tool call. Our route is a thin, streaming pass-through.
 
-## Why this architecture, not a hand-rolled pipeline
+`MONDAY_TOKEN` is read from the environment inside the route handler. It is never sent to the browser and never appears in a client bundle.
 
-Three simpler alternatives were considered and rejected:
-- **Hand-rolled GraphQL client + pandas cleaning + a second LLM call for chat**: more moving parts, more code to get right under time pressure, and duplicates work the MCP connector already does server-side.
-- **Self-hosted MCP server**: unnecessary — monday.com publishes an official hosted server at `mcp.monday.com`, requiring only a personal access token.
-- **Text-to-SQL / function-calling loop over a local cache**: violates "must query dynamically, don't hardcode CSV data," and adds a caching-invalidation problem the brief doesn't need solved.
+## Why not a hand-rolled pipeline
 
-## Monday.com integration
+| Rejected | Why |
+|---|---|
+| GraphQL client + local cleaning + a second LLM call | Duplicates what the connector already does server-side; three failure points instead of one, on a 6-hour budget |
+| Self-hosted MCP server | monday.com publishes an official hosted one; self-hosting buys nothing here |
+| Text-to-SQL over a local cache | Violates "query monday.com dynamically"; adds cache invalidation nobody asked for |
 
-- Connector: Anthropic's MCP connector (`mcp_servers` + `mcp_toolset`, beta `mcp-client-2025-11-20`).
-- Server: `https://mcp.monday.com/mcp` (official, hosted by monday.com — package `@mondaydotcomorg/monday-api-mcp`).
-- Auth: `authorization_token` field on the `mcp_servers` entry, sourced from the `MONDAY_TOKEN` env var. Never hardcoded, never logged.
-- Access level: read-only by construction — the app never issues a write/mutation prompt, and the monday.com token should be scoped to read access only.
+## Data model
 
-## Data model (as inspected directly from the source CSVs)
+Read directly from the supplied CSVs, not inferred.
 
-**Deals board ("Deal Funnel")** — 12 columns:
+**`Deal tracker`** — 12 columns:
 `Deal Name, Owner code, Client Code, Deal Status, Close Date (A), Closure Probability, Masked Deal value, Tentative Close Date, Deal Stage, Product deal, Sector/service, Created Date`
 
-**Work Orders board ("Work Order Tracker")** — 49 columns, including:
-`Deal name masked, Customer Name Code, Serial #, Nature of Work, Execution Status, Data Delivery Date, Date of PO/LOI, Probable Start/End Date, Sector, Type of Work, Amount in Rupees (Masked) [6 variants: excl/incl GST, billed, collected, receivable], Quantity by Ops, Quantities as per PO, Quantity billed, Balance in quantity, Invoice/Collection/Billing Status`
+Dates are ISO `YYYY-MM-DD`. `Deal Stage` is alphabetically prefixed to encode funnel order (`B. Sales Qualified Leads`).
 
-## Data-cleaning rules (enforced via system prompt, not code)
+**`work order tracker`** — 38 columns covering execution status, six masked amount variants (excl/incl GST x ordered/billed/collected/receivable), quantities, and invoice/collection/billing status.
 
-| Issue (confirmed present in source data) | Rule |
+> The Work Order CSV's **first row is blank**; the real header is row 2. Delete row 1 before importing or monday.com produces 38 unnamed columns. This is the single most likely setup failure.
+
+**Join key:** `Deal Name` (board 1) <-> `Deal name masked` (board 2), matched as exact strings since both are masked.
+
+## Data-quality handling
+
+Enforced through the system prompt in `lib/config.ts`, not through code:
+
+| Issue (confirmed in the source data) | Rule |
 |---|---|
-| Inconsistent status casing (`Open`/`open`; `BIlled`/`Fully Billed`/`Partially Billed`; `Not billable`/`Not Billable`) | Normalize before counting/grouping |
-| Quantity fields mix units inline (`5360 HA`, `4`, `NA`) | Strip unit suffixes before arithmetic; treat `NA` as missing, not zero |
-| Deliberately corrupted rows (placeholder names with all other fields blank; exact duplicate rows) | Exclude from aggregates; disclose the exclusion |
-| Frequently blank fields (Close Date, Closure Probability, Masked Deal value) | Never treat blank as zero; disclose the gap |
-| Inconsistent column-header abbreviations (`Exl.` vs `Excl`) | Don't rely on exact header string matching |
+| Status casing/spelling drift (`BIlled` / `Fully Billed`; `Not billable` / `Not Billable`) | Normalize before grouping |
+| Quantities with inline units (`5360 HA`, `4`, `NA`) | Strip suffixes; `NA` is missing, never zero |
+| Impossible negatives (negative balance against a positive ordered quantity) | Flag as suspect, don't average in |
+| Frequently blank fields (Close Date, Closure Probability, Masked Deal value) | Exclude from the aggregate and report the count |
+| Junk rows (name-only rows, exact duplicates) | Exclude and disclose |
+| Header inconsistency (`Exl.` vs `Excl`) | Match loosely |
+| Masked amounts | Safe for ratios and trends; never presented as real rupee figures |
 
-**Why prompt-based cleaning instead of a pandas pipeline:** the messiness here is contextual (is this row real or a corrupted test row? does "Open" and "open" mean the same status?) rather than purely mechanical, and Claude reasons about ambiguous cases better than a fixed regex/rule set would under a 6-hour build budget. The trade-off is explicit in `DECISION_LOG.md`.
-
-## Conversational layer
-
-Full session message history is replayed each turn (`st.session_state.messages`) so the model has multi-turn context. No summarization/compaction is implemented — acceptable for a demo-length conversation; would need addressing for long-running sessions (see Known Limitations).
+**Why prompt-based rather than a cleaning pipeline:** most of this messiness needs judgment, not a regex — deciding whether a row is corrupt test data or a real record with sparse fields, or whether two status spellings mean the same thing. A fixed rule set handles the mechanical half and silently mangles the rest. The trade-off, and what a production version would do instead, is in `DECISION_LOG.md`.
 
 ## Known limitations
 
-- **No caching**: every question re-queries monday.com live. Correct per the brief's requirement, but means repeated identical questions cost a fresh API + MCP round trip each time.
-- **No conversation compaction**: a very long chat session could eventually hit context limits. Not addressed given the assignment's scope and timeframe.
-- **Single shared credential**: one `MONDAY_TOKEN` for the whole app — fine for this exercise, not appropriate for a multi-tenant product.
-- **No automated tests**: manual verification only (see `DECISION_LOG.md` for what was tested).
-- **Data-quality handling is prompt-based, not code-enforced**: a sufficiently adversarial or ambiguous data row could be misclassified by the model. A production version would likely want deterministic cleaning augmented by model reasoning, not model reasoning alone.
+- **Vercel function timeout.** `maxDuration = 60` (Hobby ceiling; Pro allows 300). MCP tool calls complete *before* the first token streams, so a slow multi-board query spends that budget with the user watching a spinner. Mitigated by streaming and an explicit "Querying monday.com..." state; a genuinely slow query would need the Pro tier or a background-job pattern.
+- **No caching.** Every question re-queries monday.com. Correct per the brief, but repeated questions pay full latency each time.
+- **No conversation compaction.** A long session will eventually exceed the context window. Fine for a demo, not for sustained use.
+- **Single shared credential.** One `MONDAY_TOKEN` for all users of the deployment.
+- **Cleaning is prompt-enforced, not code-enforced.** An unusual row could be classified wrongly, and there is no deterministic guarantee the same row is treated the same way twice.
+- **Board names are hardcoded** in `lib/config.ts`. Renaming a board in monday.com breaks discovery until the constant is updated.
+- **No automated tests** beyond `scripts/smoke-test.mjs`, which is a live connectivity and behaviour check rather than a unit test.

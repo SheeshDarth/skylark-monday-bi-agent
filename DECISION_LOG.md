@@ -1,29 +1,31 @@
 # Decision Log
 
-## Key assumptions
+## Assumptions
 
-- "Founder-level BI queries" means conversational, insight-oriented answers (trends, risk, context) rather than raw row dumps or table exports.
-- The two boards are the complete data surface for this exercise — no other Skylark systems are in scope.
-- "Query monday.com dynamically" is satisfied by Claude's MCP connector calling the live boards at answer time; it does not require the app to maintain its own polling/sync layer.
-- A single shared monday.com token is acceptable for this exercise (no per-user auth).
+- "Founder-level BI queries" means conversational answers that lead with the finding and its implication — not table exports.
+- The two boards are the entire data surface; no other Skylark system is in scope.
+- "Query monday.com dynamically" is satisfied by the MCP connector reading the boards at answer time. It doesn't require the app to run its own sync layer.
+- Masked amount columns are internally consistent, so ratios and trends are meaningful even though absolute figures are not. The agent is told to say so rather than present masked values as rupees.
+- A single shared read-scoped token is acceptable for an evaluation prototype.
 
-## Trade-offs chosen and why
+## Trade-offs
 
-| Decision | Alternative considered | Why this one |
-|---|---|---|
-| Anthropic MCP connector (server-side) over hand-rolled monday.com GraphQL client | Direct `requests` calls to monday.com's GraphQL API | Fewer moving parts under a hard 6-hour cap; the connector already handles the tool-call loop, auth, and result parsing |
-| Prompt-based data cleaning over a pandas/code cleaning pipeline | Pre-fetch both boards, clean with pandas, then hand the model a cleaned summary | The known messy-data patterns are contextual (ambiguous casing, judgment calls on which rows are corrupted test data) — better suited to model reasoning than a fixed rule set, and avoids a second data-fetch path competing with the "query dynamically" requirement |
-| Streamlit for hosting over a FastAPI + separate frontend | Reuse the FastAPI/Next.js pattern from a prior personal project | Single file, built-in chat components, one-click Streamlit Community Cloud deploy — fastest path to a working hosted demo under time pressure |
-| No local caching layer | Cache board data locally, refresh periodically | Brief explicitly requires dynamic querying, not cached/hardcoded data; caching would also reintroduce a staleness/invalidation problem out of scope for this exercise |
+**MCP connector over a hand-rolled GraphQL client.** The connector runs the tool loop server-side, so one API call covers board discovery, querying, and reasoning. A hand-rolled client meant auth, pagination, and a tool-call loop to debug, on a fixed budget, for no capability gain.
+
+**Prompt-enforced data cleaning over a pandas-style pipeline.** This is the decision I'd most expect to be challenged, so: the messiness here is largely judgment work. Deciding whether a sparse row is corrupt test data or a real record with missing fields, or whether two spellings of a status are the same status, isn't reliably expressible as a rule set — and a rule set that gets it wrong fails *silently*, inside an aggregate nobody re-derives. Putting it in the prompt means the model states what it excluded and why, in the answer, where a founder can see it. The cost is determinism: the same row isn't guaranteed identical treatment on two runs. For a prototype graded on handling ambiguity, I took the visibility over the repeatability.
+
+**Next.js on Vercel over Streamlit.** I built the Streamlit version first because it was the faster path to something hosted. Switching cost roughly an hour and bought a real streaming UI, a proper serverless boundary keeping the monday token server-side, and a stack that matches the role. The cost is Vercel's 60s function ceiling (see TRD) — a constraint Streamlit doesn't have.
+
+**No caching layer.** The brief requires dynamic querying. Caching would also reintroduce invalidation logic for a problem nobody has yet.
 
 ## What I'd do differently with more time
 
-- Add a deterministic data-cleaning layer (pandas) as a first pass before handing data to the model, with the model reasoning only over already-normalized values — reduces reliance on the model correctly applying every cleaning rule from the system prompt every time.
-- Add automated tests: at minimum, a smoke test that the MCP connection succeeds and a fixture-based test of the cleaning rules against known messy rows.
-- Add conversation compaction/summarization for long sessions.
-- Support per-user monday.com tokens rather than one shared credential, if this were to go beyond a single-exercise prototype.
-- Add a lightweight caching layer with a short TTL (seconds, not minutes) to cut latency on repeated questions without meaningfully violating "query dynamically."
+- **Deterministic pre-clean, then model reasoning.** Normalize casing, strip quantity units, and drop exact duplicates in code, then let the model handle only the genuinely ambiguous rows. Keeps the judgment where judgment is needed and makes the mechanical half repeatable and testable.
+- **Tests.** Fixture rows for each known messy pattern, asserting the cleaning rules; plus a mock-MCP test for the route so CI doesn't need live credentials.
+- **Surface tool-call progress.** The UI shows a single "Querying monday.com..." state for what may be several tool calls. Streaming the MCP events would make a 40-second query legible instead of worrying.
+- **Discover boards by ID, not name.** Board names are currently hardcoded constants; a rename in monday.com silently breaks discovery.
+- **Conversation compaction** for long sessions, and **per-user tokens** if this were ever more than a prototype.
 
-## Interpretation of "the agent should help prepare data for leadership updates"
+## Interpretation of "help prepare data for leadership updates"
 
-Implemented as an explicit output mode: when a user's question reads like a request for a leadership update ("prepare an update on X", "summarize X for leadership"), the agent formats its answer as a short markdown block — one headline stat, 2-3 supporting bullets, and one flagged risk or data-quality caveat — designed to be pasted directly into an email or slide, rather than as a long conversational answer.
+Read as an output mode rather than a feature. When a question reads like a request for an update — "prepare an update on X", "summarize X for leadership" — the agent returns a pasteable markdown block instead of a conversational answer: one headline stat, two or three supporting bullets, and one flagged risk or data caveat. The caveat is deliberately part of the format. An update that hides its own data gaps is how a bad number reaches a board meeting.

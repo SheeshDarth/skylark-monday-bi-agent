@@ -1,0 +1,154 @@
+:root {
+  --bg: #f7f8f7;
+  --panel: #ffffff;
+  --ink: #16283a;
+  --muted: #5a6675;
+  --line: #dfe4e2;
+  --accent: #0f6b6b;
+  --user: #eef3f3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e161d;
+    --panel: #141f28;
+    --ink: #e7edf0;
+    --muted: #8fa0ad;
+    --line: #26343d;
+    --accent: #39b8ac;
+    --user: #1b2a33;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 "Segoe UI", system-ui, sans-serif;
+}
+
+.shell {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 32px 20px 24px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.examples {
+  display: grid;
+  gap: 8px;
+}
+
+.examples button {
+  text-align: left;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.examples button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+article {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.who {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
+.bubble {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.user .bubble {
+  background: var(--user);
+}
+
+.pending {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  position: sticky;
+  bottom: 0;
+  padding-bottom: 8px;
+  background: var(--bg);
+}
+
+.composer input {
+  flex: 1;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+}
+
+.composer input:focus-visible,
+.examples button:focus-visible,
+.composer button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.composer button {
+  padding: 12px 22px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

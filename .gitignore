@@ -1,4 +1,9 @@
+node_modules/
+.next/
 .env
-__pycache__/
-*.pyc
-.streamlit/secrets.toml
+.env.local
+next-env.d.ts
+*.tsbuildinfo
+
+# Client data — imported into monday.com, never committed
+*.csv
