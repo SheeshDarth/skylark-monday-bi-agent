@@ -177,9 +177,15 @@ input:disabled {
 .workspace-header h2 {
   max-width: 760px;
   margin-top: 4px;
-  font-size: clamp(24px, 3vw, 38px);
-  line-height: 1.12;
+  font-size: clamp(22px, 2.4vw, 32px);
+  line-height: 1.16;
   letter-spacing: 0;
+}
+
+.header-copy {
+  max-width: 720px;
+  margin: 8px 0 0;
+  color: var(--muted);
 }
 
 .status-pill {
@@ -299,8 +305,32 @@ input:disabled {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-strong);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.bubble p,
+.bubble ul {
+  margin: 0;
+}
+
+.bubble p + p,
+.bubble p + ul,
+.bubble ul + p,
+.bubble ul + ul {
+  margin-top: 10px;
+}
+
+.bubble ul {
+  padding-left: 20px;
+}
+
+.bubble li + li {
+  margin-top: 8px;
+}
+
+.bubble strong {
+  color: var(--ink);
+  font-weight: 800;
 }
 
 .user .bubble {

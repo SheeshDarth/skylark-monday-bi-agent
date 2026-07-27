@@ -7,6 +7,7 @@
 
 const { GEMINI_MODEL, SYSTEM_PROMPT } = await import("../lib/config.ts");
 const { DEALS_BOARD_ID, WORK_ORDERS_BOARD_ID, MONDAY_API_URL } = await import("../lib/config.ts");
+const { buildAnalyticsSummary } = await import("../lib/analytics.ts");
 
 const QUESTIONS = [
   "List the live monday boards you received and how many rows each snapshot contains. Do not analyze.",
@@ -88,7 +89,9 @@ async function fetchSnapshot() {
 }
 
 const snapshot = await fetchSnapshot();
+const analytics = buildAnalyticsSummary(snapshot);
 const snapshotJson = JSON.stringify(snapshot);
+const analyticsJson = JSON.stringify(analytics);
 
 async function ask(question) {
   const response = await fetch(
@@ -104,7 +107,13 @@ async function ask(question) {
         contents: [
           {
             role: "user",
-            parts: [{ text: `LIVE MONDAY SNAPSHOT JSON:\n${snapshotJson}\n\nUSER: ${question}` }],
+            parts: [
+              {
+                text:
+                  `DETERMINISTIC ANALYTICS SUMMARY JSON:\n${analyticsJson}\n\n` +
+                  `LIVE MONDAY SNAPSHOT JSON:\n${snapshotJson}\n\nUSER: ${question}`,
+              },
+            ],
           },
         ],
         generationConfig: {

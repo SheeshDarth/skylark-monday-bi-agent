@@ -1,4 +1,5 @@
 import { SYSTEM_PROMPT } from "@/lib/config";
+import { buildAnalyticsSummary } from "@/lib/analytics";
 import { generateGeminiAnswer } from "@/lib/gemini";
 import { fetchMondaySnapshot, formatSnapshotForPrompt } from "@/lib/monday";
 
@@ -29,14 +30,17 @@ function formatConversation(messages: ChatMessage[]) {
   return messages.map((message) => `${message.role.toUpperCase()}: ${message.content}`).join("\n\n");
 }
 
-function buildInput(messages: ChatMessage[], snapshotJson: string) {
-  return `LIVE MONDAY SNAPSHOT JSON:
+function buildInput(messages: ChatMessage[], analyticsJson: string, snapshotJson: string) {
+  return `DETERMINISTIC ANALYTICS SUMMARY JSON:
+${analyticsJson}
+
+LIVE MONDAY SNAPSHOT JSON:
 ${snapshotJson}
 
 CONVERSATION:
 ${formatConversation(messages)}
 
-Answer the latest user message from the live snapshot.`;
+Answer the latest user message. Prefer the deterministic analytics summary for aggregate numbers; use the raw snapshot only for supporting rows, caveats, and drill-down details.`;
 }
 
 export async function POST(req: Request) {
@@ -60,10 +64,11 @@ export async function POST(req: Request) {
     async start(controller) {
       try {
         const snapshot = await fetchMondaySnapshot(mondayToken);
+        const analytics = buildAnalyticsSummary(snapshot);
         const text = await generateGeminiAnswer(
           geminiKey,
           SYSTEM_PROMPT,
-          buildInput(messages, formatSnapshotForPrompt(snapshot)),
+          buildInput(messages, JSON.stringify(analytics), formatSnapshotForPrompt(snapshot)),
         );
         controller.enqueue(encoder.encode(text));
         controller.close();

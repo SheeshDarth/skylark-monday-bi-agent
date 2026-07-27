@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -31,8 +31,55 @@ const EXAMPLES = [
 const SOURCES = [
   { label: "Deal funnel", meta: "5030221367" },
   { label: "Work orders", meta: "5030220660" },
-  { label: "Model", meta: "Gemini" },
+  { label: "Model", meta: "Gemini Flash-Lite" },
 ];
+
+function renderInline(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
+function renderMessage(content: string) {
+  if (!content.trim()) return null;
+
+  const blocks: ReactNode[] = [];
+  let bullets: string[] = [];
+
+  function flushBullets() {
+    if (!bullets.length) return;
+    blocks.push(
+      <ul key={`ul-${blocks.length}`}>
+        {bullets.map((bullet, index) => (
+          <li key={index}>{renderInline(bullet)}</li>
+        ))}
+      </ul>,
+    );
+    bullets = [];
+  }
+
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushBullets();
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      bullets.push(trimmed.replace(/^[-*]\s+/, ""));
+      continue;
+    }
+
+    flushBullets();
+    blocks.push(<p key={`p-${blocks.length}`}>{renderInline(trimmed)}</p>);
+  }
+
+  flushBullets();
+  return blocks;
+}
 
 export default function Page() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -122,6 +169,9 @@ export default function Page() {
           <div>
             <p className="eyebrow">Live monday.com intelligence</p>
             <h2>Ask across pipeline, execution, billing, and board gaps.</h2>
+            <p className="header-copy">
+              Answers are generated from fresh board snapshots and must disclose exclusions, caveats, and masked-value handling.
+            </p>
           </div>
           <div className="status-pill">
             <span className="live-dot" aria-hidden="true" />
@@ -157,7 +207,7 @@ export default function Page() {
             {messages.map((message, index) => (
               <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
                 <span className="who">{message.role === "user" ? "You" : "Agent"}</span>
-                <div className="bubble">{message.content}</div>
+                <div className="bubble">{renderMessage(message.content)}</div>
               </article>
             ))}
 
