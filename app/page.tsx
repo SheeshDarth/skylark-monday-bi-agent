@@ -4,34 +4,18 @@ import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 
 type Message = { role: "user" | "assistant"; content: string };
 
-const EXAMPLES = [
-  {
-    label: "Pipeline",
-    questions: [
-      "How's our pipeline looking by sector?",
-      "Which open deals have the highest masked value concentration?",
-    ],
-  },
-  {
-    label: "Billing",
-    questions: [
-      "What's at risk in billing and collections?",
-      "Which work orders are stuck or need billing updates?",
-    ],
-  },
-  {
-    label: "Cross-board",
-    questions: [
-      "Which sectors have deals but no active work orders?",
-      "Prepare a leadership update on pipeline health.",
-    ],
-  },
+const QUICK_PROMPTS = [
+  "Prepare a leadership update on pipeline health.",
+  "How's our pipeline looking by sector?",
+  "What's at risk in billing and collections?",
+  "Which sectors have deals but no active work orders?",
 ];
 
 const SOURCES = [
-  { label: "Deal funnel", meta: "5030221367" },
-  { label: "Work orders", meta: "5030220660" },
+  { label: "Deal funnel", meta: "Board 5030221367" },
+  { label: "Work orders", meta: "Board 5030220660" },
   { label: "Model", meta: "Gemini Flash-Lite" },
+  { label: "Connection", meta: "Direct GraphQL" },
 ];
 
 function renderInline(text: string): ReactNode[] {
@@ -140,66 +124,63 @@ export default function Page() {
 
   return (
     <main className="app-shell">
-      <aside className="source-rail" aria-label="Live data sources">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            S
-          </span>
-          <div>
-            <h1>Skylark BI</h1>
-            <p>Founder cockpit</p>
-          </div>
-        </div>
-
-        <div className="source-list">
-          {SOURCES.map((source) => (
-            <div className="source-item" key={source.label}>
-              <span className="live-dot" aria-hidden="true" />
-              <div>
-                <strong>{source.label}</strong>
-                <span>{source.meta}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-
       <section className="workspace">
-        <header className="workspace-header">
-          <div>
-            <p className="eyebrow">Live monday.com intelligence</p>
-            <h2>Ask across pipeline, execution, billing, and board gaps.</h2>
-            <p className="header-copy">
-              Answers are generated from fresh board snapshots and must disclose exclusions, caveats, and masked-value handling.
-            </p>
+        <header className="topbar">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              S
+            </span>
+            <div>
+              <h1>Skylark BI</h1>
+              <p>Founder cockpit</p>
+            </div>
           </div>
-          <div className="status-pill">
-            <span className="live-dot" aria-hidden="true" />
-            Direct GraphQL
+
+          <div className="source-chips" aria-label="Live data sources">
+            {SOURCES.map((source) => (
+              <div className="source-chip" key={source.label}>
+                <span className="live-dot" aria-hidden="true" />
+                <span>{source.label}</span>
+                <strong>{source.meta}</strong>
+              </div>
+            ))}
           </div>
         </header>
 
-        <section className="prompt-grid" aria-label="Suggested questions">
-          {EXAMPLES.map((group) => (
-            <div className="prompt-card" key={group.label}>
-              <h3>{group.label}</h3>
-              {group.questions.map((question) => (
-                <button key={question} type="button" onClick={() => send(question)} disabled={busy}>
-                  {question}
-                </button>
-              ))}
-            </div>
+        <section className="intro">
+          <div>
+            <p className="eyebrow">Live monday.com intelligence</p>
+            <h2>Ask the boards. Get a clean business readout.</h2>
+            <p>
+              Focused answers across pipeline, work orders, billing, and handoff gaps.
+              Masked source values stay in masked units.
+            </p>
+          </div>
+          <div className="status-pill" aria-label="Connection status">
+            <span className="live-dot" aria-hidden="true" />
+            Live snapshot
+          </div>
+        </section>
+
+        <section className="quick-prompts" aria-label="Suggested questions">
+          {QUICK_PROMPTS.map((question) => (
+            <button key={question} type="button" onClick={() => send(question)} disabled={busy}>
+              {question}
+            </button>
           ))}
         </section>
 
         <section className="thread-panel" aria-label="Conversation">
+          <div className="thread-header">
+            <span>Conversation</span>
+            <span>Fresh monday snapshot per answer</span>
+          </div>
           <div className="thread" role="log" aria-live="polite" aria-busy={busy}>
             {messages.length === 0 && (
               <div className="empty-state">
-                <h3>Ready for a leadership-grade readout.</h3>
+                <h3>Ready for a board-level readout.</h3>
                 <p>
-                  Choose a prompt above or ask a specific question about sector mix, active work,
-                  billing exposure, collections, or missing handoffs.
+                  Ask one specific question, or start with a prompt above.
                 </p>
               </div>
             )}
@@ -225,7 +206,7 @@ export default function Page() {
         </section>
 
         <form className="composer" onSubmit={submit}>
-          <label htmlFor="question">Question</label>
+          <label htmlFor="question">Ask Skylark BI</label>
           <div className="composer-row">
             <input
               id="question"
@@ -235,7 +216,7 @@ export default function Page() {
               disabled={busy}
             />
             <button type="submit" disabled={busy || !input.trim()}>
-              {busy ? "Working" : "Ask"}
+              {busy ? "Working..." : "Ask"}
             </button>
           </div>
         </form>
