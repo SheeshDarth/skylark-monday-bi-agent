@@ -9,3 +9,5 @@ next-env.d.ts
 
 # Client data — imported into monday.com, never committed
 *.csv
+
+.vercel
