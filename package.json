@@ -5,12 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "audit": "node --env-file=.env.local scripts/audit-assignment.mjs",
     "start": "next start",
     "smoke": "node --env-file=.env.local scripts/smoke-test.mjs"
   },
   "dependencies": {
     "next": "^15.5.0",
-    "openai": "^6.49.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

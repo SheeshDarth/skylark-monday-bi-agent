@@ -1,7 +1,7 @@
-import OpenAI from "openai";
-
-import { OPENAI_MODEL, SYSTEM_PROMPT } from "@/lib/config";
-import { fetchMondaySnapshot, formatSnapshotForPrompt } from "@/lib/monday";
+import { SYSTEM_PROMPT } from "@/lib/config";
+import { buildAnalyticsSummary } from "@/lib/analytics";
+import { generateGeminiAnswer } from "@/lib/gemini";
+import { fetchMondaySnapshot } from "@/lib/monday";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,23 +30,23 @@ function formatConversation(messages: ChatMessage[]) {
   return messages.map((message) => `${message.role.toUpperCase()}: ${message.content}`).join("\n\n");
 }
 
-function buildInput(messages: ChatMessage[], snapshotJson: string) {
-  return `LIVE MONDAY SNAPSHOT JSON:
-${snapshotJson}
+function buildInput(messages: ChatMessage[], analyticsJson: string) {
+  return `DETERMINISTIC ANALYTICS SUMMARY JSON:
+${analyticsJson}
 
 CONVERSATION:
 ${formatConversation(messages)}
 
-Answer the latest user message from the live snapshot.`;
+Answer the latest user message using only the deterministic analytics summary for numbers, rankings, samples, caveats, and exclusions.`;
 }
 
 export async function POST(req: Request) {
   const mondayToken = process.env.MONDAY_TOKEN;
-  const openAiKey = process.env.OPENAI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
 
-  if (!openAiKey || !mondayToken) {
+  if (!geminiKey || !mondayToken) {
     return Response.json(
-      { error: "Server is missing OPENAI_API_KEY or MONDAY_TOKEN." },
+      { error: "Server is missing GEMINI_API_KEY or MONDAY_TOKEN." },
       { status: 500 },
     );
   }
@@ -61,22 +61,13 @@ export async function POST(req: Request) {
     async start(controller) {
       try {
         const snapshot = await fetchMondaySnapshot(mondayToken);
-        const client = new OpenAI({ apiKey: openAiKey });
-        const stream = await client.responses.create({
-          model: OPENAI_MODEL,
-          instructions: SYSTEM_PROMPT,
-          input: buildInput(messages, formatSnapshotForPrompt(snapshot)),
-          stream: true,
-        });
-
-        for await (const event of stream) {
-          if (event.type === "response.output_text.delta") {
-            controller.enqueue(encoder.encode(event.delta));
-          }
-          if (event.type === "error") {
-            controller.enqueue(encoder.encode(`\n\n**Request failed:** ${event.message}`));
-          }
-        }
+        const analytics = buildAnalyticsSummary(snapshot);
+        const text = await generateGeminiAnswer(
+          geminiKey,
+          SYSTEM_PROMPT,
+          buildInput(messages, JSON.stringify(analytics)),
+        );
+        controller.enqueue(encoder.encode(text));
         controller.close();
       } catch (err) {
         const detail = err instanceof Error ? err.message : "Unknown error";
