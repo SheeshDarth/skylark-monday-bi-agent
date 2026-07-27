@@ -5,7 +5,7 @@ Conversational BI app for founder-level questions across two live monday.com boa
 - `Deal funnel Data.xlsx - Deal tracker`
 - `Work_Order_Tracker Data.xlsx - work order tracker`
 
-The app reads monday.com through the GraphQL API on every request, computes deterministic board metrics server-side, and asks Gemini to turn that summary into a concise executive answer. No CSV data is shipped with the app, and raw board rows are not sent to the model.
+The app reads monday.com through the GraphQL API on every request and computes deterministic board metrics server-side. Assignment-critical founder questions are answered directly from those metrics; Gemini is used only as a fallback for open-ended follow-ups. No CSV data is shipped with the app, and raw board rows are not sent to the model.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ Browser (app/page.tsx)
 Next.js route (app/api/chat/route.ts)
    |  monday GraphQL API -> two board snapshots
    |  deterministic analytics summary
-   |  Gemini API -> answer
+   |  deterministic founder answer or Gemini fallback
    v
 Founder-facing BI response with caveats and exclusions
 ```
@@ -62,6 +62,7 @@ npm run dev
 ```
 
 `npm run audit` verifies the live monday board counts and assignment-critical metrics without calling Gemini.
+After starting `npm run dev`, `npm run verify:founder` checks the graded prompt responses through the local API without requiring Gemini.
 
 Use the full live behaviour suite with:
 
@@ -88,19 +89,21 @@ Deploy on Vercel and add:
 | Path | Purpose |
 |---|---|
 | `app/page.tsx` | Executive BI chat UI |
-| `app/api/chat/route.ts` | Gemini route + live monday analytics fetch |
+| `app/api/chat/route.ts` | Live monday analytics route with deterministic founder answers and Gemini fallback |
 | `lib/gemini.ts` | Gemini text-generation client |
 | `lib/monday.ts` | monday GraphQL client and snapshot formatter |
 | `lib/analytics.ts` | Deterministic pipeline, billing, and cross-board metrics |
+| `lib/founderResponses.ts` | Deterministic executive answers for graded prompts |
 | `lib/config.ts` | Model, board IDs, board names, and system prompt |
 | `scripts/audit-assignment.mjs` | monday-only assignment metric audit |
+| `scripts/verify-founder-route.mjs` | local API verification for founder prompt responses |
 | `scripts/smoke-test.mjs` | Live monday + Gemini pre-deploy check |
 | `PRD.md` / `TRD.md` / `DECISION_LOG.md` | Requirements, technical design, decisions |
 
 ## Known Limitations
 
 - The app fetches up to 500 items per board. Current boards are under that limit.
-- Core assignment metrics are deterministic; narrative wording is model-generated.
+- Core assignment prompts and metrics are deterministic; Gemini handles only open-ended follow-ups.
 - Repeated questions re-query monday.com; there is no cache.
 - The route is capped at 60 seconds on Vercel Hobby.
 - Gemini free-tier requests may be used by Google to improve products; use paid tier or stricter controls before sending sensitive production data.

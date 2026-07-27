@@ -14,7 +14,7 @@ app/page.tsx --POST /api/chat--> app/api/chat/route.ts
                                       +- validate transcript
                                       +- fetchMondaySnapshot(MONDAY_TOKEN)
                                       +- buildAnalyticsSummary(snapshot)
-                                      +- Gemini API response
+                                      +- deterministic founder response OR Gemini fallback
                                       |
                                       +- text deltas --> ReadableStream --> browser
 ```
@@ -30,7 +30,7 @@ The route reads two monday.com boards by numeric ID:
 | Deal funnel Data.xlsx - Deal tracker | `5030221367` |
 | Work_Order_Tracker Data.xlsx - work order tracker | `5030220660` |
 
-`lib/monday.ts` queries board metadata and up to 500 items per board, maps column IDs to human-readable column titles, and drops empty column values from each row. `lib/analytics.ts` converts that live snapshot into deterministic pipeline, billing-risk, and cross-board-gap metrics. Gemini receives that deterministic summary, not the raw board rows.
+`lib/monday.ts` queries board metadata and up to 500 items per board, maps column IDs to human-readable column titles, and drops empty column values from each row. `lib/analytics.ts` converts that live snapshot into deterministic pipeline, billing-risk, and cross-board-gap metrics. `lib/founderResponses.ts` answers the graded founder prompts directly from that summary. Gemini receives the deterministic summary only for open-ended fallback questions, not the raw board rows.
 
 ## Data Model
 
@@ -51,6 +51,14 @@ The route reads two monday.com boards by numeric ID:
 | Billing risk | Normalized billing statuses, receivable exposure, unbilled exposure, top masked accounts |
 | Cross-board gaps | Exact masked-name join, active-work-order coverage, sectors with open deals but no active work order |
 | Caveats | Missing values, inactive/missing execution statuses, duplicate masked names |
+
+Known graded prompts are routed deterministically before Gemini:
+
+- live board row counts
+- pipeline by sector
+- billing and collection risk
+- sectors with open deals but no active work orders
+- leadership update on pipeline health
 
 ## Data-Quality Handling
 
@@ -73,7 +81,7 @@ Direct monday GraphQL is the demo-critical path because it has predictable board
 ## Known Limitations
 
 - `items_page(limit: 500)` is enough for the current boards but should be paginated before production scale.
-- Core assignment metrics are deterministic; free-form follow-up questions are limited to the summary sent to Gemini.
+- Core assignment prompts and metrics are deterministic; free-form follow-up questions are limited to the summary sent to Gemini.
 - No caching; every request re-reads monday.
 - No long-session conversation compaction.
 - One shared monday token and Gemini key.
