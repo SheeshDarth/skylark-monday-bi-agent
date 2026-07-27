@@ -2,7 +2,7 @@
 
 ## Stack
 
-Next.js 15 App Router, TypeScript, monday.com GraphQL API, OpenAI Responses API.
+Next.js 15 App Router, TypeScript, monday.com GraphQL API, Gemini API.
 
 No database, ORM, or state store. The monday boards are the source of truth and are read live on every turn.
 
@@ -13,12 +13,12 @@ app/page.tsx --POST /api/chat--> app/api/chat/route.ts
                                       |
                                       +- validate transcript
                                       +- fetchMondaySnapshot(MONDAY_TOKEN)
-                                      +- OpenAI Responses API stream
+                                      +- Gemini API response
                                       |
                                       +- text deltas --> ReadableStream --> browser
 ```
 
-`MONDAY_TOKEN` and `OPENAI_API_KEY` are read from environment variables inside the route handler. They are never sent to the browser.
+`MONDAY_TOKEN` and `GEMINI_API_KEY` are read from environment variables inside the route handler. They are never sent to the browser.
 
 ## Data Source
 
@@ -29,7 +29,7 @@ The route reads two monday.com boards by numeric ID:
 | Deal funnel Data.xlsx - Deal tracker | `5030221367` |
 | Work_Order_Tracker Data.xlsx - work order tracker | `5030220660` |
 
-`lib/monday.ts` queries board metadata and up to 500 items per board, maps column IDs to human-readable column titles, drops empty column values from each row, and sends a compact JSON snapshot to OpenAI.
+`lib/monday.ts` queries board metadata and up to 500 items per board, maps column IDs to human-readable column titles, drops empty column values from each row, and sends a compact JSON snapshot to Gemini.
 
 ## Data Model
 
@@ -64,5 +64,6 @@ Direct monday GraphQL is the demo-critical path because it has predictable board
 - Data cleaning is prompt-enforced after snapshot shaping, not a deterministic pipeline.
 - No caching; every request re-reads monday.
 - No long-session conversation compaction.
-- One shared monday token and OpenAI key.
+- One shared monday token and Gemini key.
+- Gemini free-tier data may be used to improve Google products; use paid tier or stricter controls before production use.
 - Vercel Hobby route duration is capped at 60 seconds.

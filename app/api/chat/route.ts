@@ -1,6 +1,5 @@
-import OpenAI from "openai";
-
-import { OPENAI_MODEL, SYSTEM_PROMPT } from "@/lib/config";
+import { SYSTEM_PROMPT } from "@/lib/config";
+import { generateGeminiAnswer } from "@/lib/gemini";
 import { fetchMondaySnapshot, formatSnapshotForPrompt } from "@/lib/monday";
 
 export const runtime = "nodejs";
@@ -42,11 +41,11 @@ Answer the latest user message from the live snapshot.`;
 
 export async function POST(req: Request) {
   const mondayToken = process.env.MONDAY_TOKEN;
-  const openAiKey = process.env.OPENAI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
 
-  if (!openAiKey || !mondayToken) {
+  if (!geminiKey || !mondayToken) {
     return Response.json(
-      { error: "Server is missing OPENAI_API_KEY or MONDAY_TOKEN." },
+      { error: "Server is missing GEMINI_API_KEY or MONDAY_TOKEN." },
       { status: 500 },
     );
   }
@@ -61,22 +60,12 @@ export async function POST(req: Request) {
     async start(controller) {
       try {
         const snapshot = await fetchMondaySnapshot(mondayToken);
-        const client = new OpenAI({ apiKey: openAiKey });
-        const stream = await client.responses.create({
-          model: OPENAI_MODEL,
-          instructions: SYSTEM_PROMPT,
-          input: buildInput(messages, formatSnapshotForPrompt(snapshot)),
-          stream: true,
-        });
-
-        for await (const event of stream) {
-          if (event.type === "response.output_text.delta") {
-            controller.enqueue(encoder.encode(event.delta));
-          }
-          if (event.type === "error") {
-            controller.enqueue(encoder.encode(`\n\n**Request failed:** ${event.message}`));
-          }
-        }
+        const text = await generateGeminiAnswer(
+          geminiKey,
+          SYSTEM_PROMPT,
+          buildInput(messages, formatSnapshotForPrompt(snapshot)),
+        );
+        controller.enqueue(encoder.encode(text));
         controller.close();
       } catch (err) {
         const detail = err instanceof Error ? err.message : "Unknown error";

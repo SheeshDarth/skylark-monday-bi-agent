@@ -1,12 +1,11 @@
 /**
- * Pre-deploy check: can the app reach monday.com and OpenAI?
+ * Pre-deploy check: can the app reach monday.com and Gemini?
  *
  *   node --env-file=.env.local scripts/smoke-test.mjs
  *   node --env-file=.env.local scripts/smoke-test.mjs --all
  */
-import OpenAI from "openai";
 
-const { OPENAI_MODEL, SYSTEM_PROMPT } = await import("../lib/config.ts");
+const { GEMINI_MODEL, SYSTEM_PROMPT } = await import("../lib/config.ts");
 const { DEALS_BOARD_ID, WORK_ORDERS_BOARD_ID, MONDAY_API_URL } = await import("../lib/config.ts");
 
 const QUESTIONS = [
@@ -17,13 +16,11 @@ const QUESTIONS = [
   "Prepare a leadership update on pipeline health.",
 ];
 
-const missing = ["OPENAI_API_KEY", "MONDAY_TOKEN"].filter((key) => !process.env[key]);
+const missing = ["GEMINI_API_KEY", "MONDAY_TOKEN"].filter((key) => !process.env[key]);
 if (missing.length) {
   console.error(`Missing env vars: ${missing.join(", ")}`);
   process.exit(1);
 }
-
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const BOARD_QUERY = `
   query BoardSnapshot($ids: [ID!]!) {
@@ -94,13 +91,36 @@ const snapshot = await fetchSnapshot();
 const snapshotJson = JSON.stringify(snapshot);
 
 async function ask(question) {
-  const response = await client.responses.create({
-    model: OPENAI_MODEL,
-    instructions: SYSTEM_PROMPT,
-    input: `LIVE MONDAY SNAPSHOT JSON:\n${snapshotJson}\n\nUSER: ${question}`,
-  });
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": process.env.GEMINI_API_KEY,
+      },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: `LIVE MONDAY SNAPSHOT JSON:\n${snapshotJson}\n\nUSER: ${question}` }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 4096,
+        },
+      }),
+    },
+  );
 
-  return response.output_text;
+  const json = await response.json();
+  if (!response.ok || json.error?.message) {
+    throw new Error(json.error?.message || `Gemini status ${response.status}`);
+  }
+
+  return json.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
 }
 
 const all = process.argv.includes("--all");

@@ -1,6 +1,6 @@
 /** Shared config for the chat route and smoke tests. */
 
-export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.5";
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 export const MONDAY_API_URL = "https://api.monday.com/v2";
 
 export const DEALS_BOARD_ID = 5030221367;

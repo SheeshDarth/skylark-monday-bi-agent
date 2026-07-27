@@ -31,7 +31,7 @@ const EXAMPLES = [
 const SOURCES = [
   { label: "Deal funnel", meta: "5030221367" },
   { label: "Work orders", meta: "5030220660" },
-  { label: "Model", meta: "OpenAI" },
+  { label: "Model", meta: "Gemini" },
 ];
 
 export default function Page() {
