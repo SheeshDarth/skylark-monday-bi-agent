@@ -1,69 +1,98 @@
 # Skylark Business Intelligence Agent
 
-Conversational agent that answers founder-level questions — *"How's our pipeline looking for the energy sector this quarter?"* — by querying two monday.com boards **live**. No cached data, no CSVs shipped with the app.
+Conversational BI app for founder-level questions across two live monday.com boards:
 
-Next.js on Vercel; Claude reaches monday.com through the Anthropic MCP connector.
+- `Deal funnel Data.xlsx - Deal tracker`
+- `Work_Order_Tracker Data.xlsx - work order tracker`
+
+The app reads monday.com through the GraphQL API on every request, normalizes the live rows into a compact snapshot, and asks OpenAI to produce the executive answer from that snapshot. No CSV data is shipped with the app.
 
 ## Architecture
 
-```
+```text
 Browser (app/page.tsx)
    |  POST /api/chat  -- streamed text/plain
    v
-Vercel serverless fn (app/api/chat/route.ts)
-   |  Anthropic Messages API + MCP connector
+Next.js route (app/api/chat/route.ts)
+   |  monday GraphQL API -> two board snapshots
+   |  OpenAI Responses API -> streamed answer
    v
-Claude (claude-opus-5) --> mcp.monday.com --> Deal tracker
-                                          \-> work order tracker
+Founder-facing BI response with caveats and exclusions
 ```
 
-One API call per turn. Claude decides which board to read, issues the MCP tool calls server-side, cleans the data as it reasons (rules in `lib/config.ts`), and streams the answer back. There is no local fetch/clean/aggregate pipeline — see `TRD.md` for why.
+The monday token stays server-side. The browser only sees streamed answer text.
 
 ## Setup
 
-### 1. Prepare the CSVs
+### 1. monday.com
 
-> **Delete row 1 of `Work_Order_Tracker Data.xlsx - work order tracker.csv` before importing.** It is entirely blank; monday.com will otherwise treat it as the header row and produce 38 unnamed columns. The real header is row 2. The Deal funnel CSV is fine as-is.
+Both boards must exist in monday.com. This repo is configured to use board IDs:
 
-### 2. monday.com
+| Board | ID |
+|---|---:|
+| Deal funnel Data.xlsx - Deal tracker | `5030221367` |
+| Work_Order_Tracker Data.xlsx - work order tracker | `5030220660` |
 
-1. Import both CSVs as two separate boards.
-2. Name them **`Deal tracker`** and **`work order tracker`** — these must match `DEALS_BOARD` / `WORK_ORDERS_BOARD` in `lib/config.ts`, or the agent won't find them.
-3. Generate a personal API token (Avatar -> Developers -> My access tokens). **Read scope is sufficient** — the brief requires read-only.
+If you re-import the CSVs and get new board IDs, update `lib/config.ts`.
+
+### 2. Environment
+
+```bash
+npm install
+cp .env.example .env.local
+```
+
+Add real values:
+
+```env
+OPENAI_API_KEY=sk-proj-...
+OPENAI_MODEL=gpt-5.5
+MONDAY_TOKEN=your-monday-personal-api-token
+```
+
+`OPENAI_MODEL` is optional; it defaults to `gpt-5.5`.
 
 ### 3. Run locally
 
 ```bash
-npm install
-cp .env.example .env.local     # add ANTHROPIC_API_KEY and MONDAY_TOKEN
-
-npm run smoke                  # verify monday.com is reachable FIRST
+npm run smoke
 npm run dev
 ```
 
-`npm run smoke` confirms the MCP connection works and both boards are readable, and fails loudly if Claude answers *without* actually calling monday.com. MCP auth errors only surface when a tool call runs, so a bad token otherwise looks fine until mid-demo. Add `-- --all` for the full 5-question suite.
-
-If your shell doesn't load `.env.local` automatically:
-`node --env-file=.env.local scripts/smoke-test.mjs`
-
-### 4. Deploy to Vercel
+Use the full live behaviour suite with:
 
 ```bash
-vercel            # or import the GitHub repo at vercel.com/new
+npm run smoke -- --all
 ```
 
-Add both env vars in **Project -> Settings -> Environment Variables**, then redeploy. Nothing else to configure — `next build` is detected automatically.
+If your shell does not load `.env.local` automatically:
+
+```bash
+node --env-file=.env.local scripts/smoke-test.mjs
+```
+
+### 4. Deploy
+
+Deploy on Vercel and add:
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` if overriding the default
+- `MONDAY_TOKEN`
 
 ## Files
 
 | Path | Purpose |
 |---|---|
-| `app/page.tsx` | Chat UI (client component, streams the response) |
-| `app/api/chat/route.ts` | Serverless route — Anthropic call + MCP connector |
-| `lib/config.ts` | Model, MCP URL, board names, system prompt (incl. data-cleaning rules) |
-| `scripts/smoke-test.mjs` | Pre-deploy connection check + the 5 manual test questions |
+| `app/page.tsx` | Executive BI chat UI |
+| `app/api/chat/route.ts` | OpenAI streaming route + live monday snapshot fetch |
+| `lib/monday.ts` | monday GraphQL client and snapshot formatter |
+| `lib/config.ts` | Model, board IDs, board names, and system prompt |
+| `scripts/smoke-test.mjs` | Live monday + OpenAI pre-deploy check |
 | `PRD.md` / `TRD.md` / `DECISION_LOG.md` | Requirements, technical design, decisions |
 
-## Known limitations
+## Known Limitations
 
-See `TRD.md` -> Known limitations. The one to know about up front: **Vercel caps function duration at 60s on Hobby**, and MCP tool calls run before any text streams.
+- The app fetches up to 500 items per board. Current boards are under that limit.
+- Data cleaning is still model-enforced after deterministic snapshot shaping.
+- Repeated questions re-query monday.com; there is no cache.
+- The route is capped at 60 seconds on Vercel Hobby.
