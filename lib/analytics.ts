@@ -150,6 +150,7 @@ export function buildAnalyticsSummary(snapshot: MondaySnapshot) {
   const workOrderDealNames = new Set<string>();
   const activeWorkOrderDealNamesWithoutOpenDeal = new Set<string>();
   let receivableRows = 0;
+  let positiveReceivableRows = 0;
   let totalReceivableMaskedUnits = 0;
   let missingReceivableRows = 0;
   let activeWorkOrders = 0;
@@ -200,6 +201,7 @@ export function buildAnalyticsSummary(snapshot: MondaySnapshot) {
       receivableRows += 1;
       totalReceivableMaskedUnits += receivable;
       if (receivable > 0) {
+        positiveReceivableRows += 1;
         topReceivables.push({
           deal: dealName || row.name,
           customer: clean(row.values["Customer Name Code"]) || "Missing customer",
@@ -273,6 +275,7 @@ export function buildAnalyticsSummary(snapshot: MondaySnapshot) {
       executionStatusCounts: sortedCounts(executionStatusCounts),
       receivables: {
         rowsWithReceivable: receivableRows,
+        rowsWithPositiveReceivable: positiveReceivableRows,
         missingReceivableRows,
         negativeReceivableRows,
         totalReceivableMaskedUnits,

@@ -50,7 +50,7 @@ function billingRisk(summary: AnalyticsSummary) {
   const receivables = summary.workOrders.receivables.topReceivables.slice(0, 5);
   const unbilled = summary.workOrders.unbilled.topUnbilled.slice(0, 5);
 
-  return `Billing risk is split between collection exposure and unbilled work: ${summary.workOrders.receivables.rowsWithReceivable} rows carry receivables, and ${summary.workOrders.unbilled.rowsWithAmountToBill} rows still have amount-to-bill exposure.
+  return `Billing risk is split between collection exposure and unbilled work: ${summary.workOrders.receivables.rowsWithPositiveReceivable} rows carry positive receivables, and ${summary.workOrders.unbilled.rowsWithAmountToBill} rows still have amount-to-bill exposure.
 
 Top receivable exposure:
 ${receivables.map((row, index) => `${index + 1}. ${row.deal} / ${row.customer} (${row.sector}) - ${units(row.maskedReceivableUnits)}; billing status: ${row.status}.`).join("\n")}
